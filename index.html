@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<!--
+Created using JS Bin
+http://jsbin.com
+
+Copyright (c) 2017 by anonymous (http://jsbin.com/zusufigove/6/edit)
+
+Released under the MIT license: http://jsbin.mit-license.org
+-->
+<meta name="robots" content="noindex">
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>JS Bin</title>
+<style id="jsbin-css">
+td { border:1px solid black;width:15px;height:15px;text-align:center;}
+</style>
+</head>
+<body>
+<h2>Input</h2>
+<table>
+  <tr><td></td><td>4</td><td>8</td><td></td><td>6</td><td></td><td>1</td><td>9</td><td></td></tr>
+  <tr><td></td><td>1</td><td>3</td><td></td><td></td><td>2</td><td>8</td><td></td><td></td></tr>
+  <tr><td></td><td>6</td><td></td><td></td><td>5</td><td>8</td><td></td><td></td><td></td></tr>
+  <tr><td></td><td>3</td><td></td><td>2</td><td></td><td>6</td><td>9</td><td></td><td>5</td></tr>
+  <tr><td>2</td><td></td><td></td><td></td><td></td><td></td><td></td><td>8</td><td></td></tr>
+  <tr><td></td><td>9</td><td>4</td><td>5</td><td>7</td><td></td><td>2</td><td></td><td></td></tr>
+  <tr><td>4</td><td>8</td><td></td><td></td><td></td><td>1</td><td>6</td><td></td><td>9</td></tr>
+  <tr><td></td><td></td><td></td><td></td><td>4</td><td>9</td><td>5</td><td></td><td></td></tr>
+  <tr><td></td><td>2</td><td></td><td></td><td>3</td><td></td><td>4</td><td></td><td>7</td></tr>
+</table>
+<h2>Output</h2>
+  <div id="result"></div>
+<script id="jsbin-javascript">
+class Node {
+  constructor(meta) {
+    this.meta = meta;
+  }
+}
+
+const arr = Array.from(document.querySelectorAll('td'))
+  .map(n => parseInt(n.innerText) || 'x');
+const m = 3;
+const n = 9;
+const headers = (new Array(4*n*n)).fill(0).map((_, i) => new Node(`con:${i}`));
+const cols = headers.map(h => [h]);
+const rows = [];
+const colConStart = 0;
+const rowConStart = n*n;
+const boxConStart = rowConStart + n*n;
+const cellConStart = boxConStart + n*n;
+
+
+//set up matrix for each number 
+for (let num = 1; num <= n; num++) {
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      // constraint of a number only appearing once per column
+      const colConIdx = colConStart + (num - 1) + 9 * col;
+      // constraint of a number only appearing once per row
+      const rowConIdx = rowConStart + (num - 1) + 9 * row;
+      // constraint of a number only appearing once per box
+      const boxConIdx = boxConStart + (num - 1) + 9 * (m * Math.floor(row/m) + Math.floor(col/m));
+      // constraint of every cell having a number in it
+      const cellConIdx = cellConStart + n * row + col;
+      const meta = { num, col, row, idx: n * row + col };
+      
+      const ccNode = new Node(meta);
+      const rcNode = new Node(meta);
+      const bcNode = new Node(meta);
+      const cNode = new Node(meta);
+      
+      cols[colConIdx].push(ccNode);
+      cols[rowConIdx].push(rcNode);
+      cols[boxConIdx].push(bcNode);
+      cols[cellConIdx].push(cNode);
+      rows[(num - 1) * n * n + row * n + col] = [ccNode, rcNode, bcNode, cNode];
+    }
+  }
+}
+
+function assignHeaders(cols, headers) {
+  cols.forEach((col, idx) => {
+    const header = headers[idx];
+    col.forEach(node => node.header = header);
+  });
+}
+
+function connectLinks(arr, prevProp, nextProp) { 
+  arr.map(vec => {
+    vec.forEach((item, i, arr) => {
+      item[prevProp] = arr[(i - 1 + arr.length) % arr.length];
+      item[nextProp] = arr[(i + 1) % arr.length];
+    });
+  });
+}
+
+// Connect U and D links
+function connectVertical(cols) {
+  connectLinks(cols, 'up', 'down');
+}
+
+// Connect L and R Links
+function connectHorizontal(rows) {
+  connectLinks(rows, 'left', 'right');
+}
+
+function renderResult(vec) {
+  const table = document.createElement('table');
+  const tds = vec.map(v => { 
+    const td = document.createElement('td');
+    td.innerText = v;
+    return td;
+  });
+  
+  const trs = tds.reduce((prev, next, i) => {
+    if (!(i % 9)) prev.push(document.createElement('tr'));
+    const row = prev[prev.length - 1];
+    row.appendChild(next);
+    return prev;
+  }, []);
+  trs.forEach(tr => table.appendChild(tr));
+  const res = document.querySelector('#result');
+  res.innerHTML = '';
+  res.appendChild(table);
+}
+
+function inputToConstraints(vec) {
+  return vec.reduce((p, num, i, arr) => {
+    if (num !== 'x') {
+      const x = i % n;
+      const y = Math.floor(i / n);
+      const colConIdx = colConStart + (num - 1) + 9 * x;
+      const rowConIdx = rowConStart + (num - 1) + 9 * y;
+      const boxConIdx = boxConStart + (num - 1) + 9 * (m * Math.floor(y/m) + Math.floor(x/m));
+      const cellConIdx = cellConStart + i;
+      p.push(...[colConIdx, rowConIdx, boxConIdx, cellConIdx]);
+    }
+    return p;
+  }, []).sort((a,b) => a - b);
+}
+
+function deattachLR(cell) {
+  cell.left.right = cell.right;
+  cell.right.left = cell.left;
+}
+
+function attachLR(cell) {
+  cell.left.right = cell;
+  cell.right.left = cell;
+}
+
+function deattachUD(cell) {
+  cell.up.down = cell.down;
+  cell.down.up = cell.up;
+}
+
+function attachUD(cell) {
+  cell.up.down = cell;
+  cell.down.up = cell;
+}
+
+function uncoverColumn(col) {
+  for (let tempRow = col.up; tempRow !== col; tempRow = tempRow.up) {
+    for (let tempCell = tempRow.left; tempCell !== tempRow; tempCell = tempCell.left) {
+      attachUD(tempCell);
+    }
+  }
+  attachLR(col);
+}
+
+function coverColumn(col) {
+  deattachLR(col);
+  for (let tempRow = col.down; tempRow !== col; tempRow = tempRow.down) {
+    for (let tempCell = tempRow.right; tempCell !== tempRow; tempCell = tempCell.right) {
+      deattachUD(tempCell);
+    }
+  }
+}
+
+function dlx(smat) {
+  const coverCol = smat.ghead.right;
+  // no more columns
+  if (smat.ghead === coverCol) {
+    return true;
+  }
+
+  coverColumn(coverCol);
+  for (let tempRow = coverCol.down; tempRow !== coverCol; tempRow = tempRow.down) {
+    for (let tempCell = tempRow.right; tempCell !== tempRow; tempCell = tempCell.right) {
+      coverColumn(tempCell.header);
+    }
+    if (dlx(smat)) {
+      console.log(tempRow.meta);
+      arr[tempRow.meta.idx] = tempRow.meta.num;
+      return true;
+    }
+    for (let tempCell = tempRow.left; tempCell !== tempRow; tempCell = tempCell.left) {
+      uncoverColumn(tempCell.header);
+    }
+  }
+  uncoverColumn(coverCol);
+  return false;
+}
+
+function remainingColumnCount(gHead) {
+  let i = 0;
+  let temp = gHead.right;
+  while (temp !== gHead) {
+      i++;
+      temp = temp.right;
+  }
+  return i;
+}
+
+assignHeaders(cols, headers);
+connectVertical(cols);
+connectHorizontal(rows);
+const gHead = new Node(-1);
+const heads = [gHead].concat(headers);
+connectHorizontal([heads]);
+//convert pre-filled squares into an array of columns
+const inputConstraints = inputToConstraints(arr);
+//Remove constraints given by pre-filled squares
+inputConstraints.forEach(i => coverColumn(headers[i]));
+dlx({ ghead: gHead});
+
+renderResult(arr)
+</script>
+</body>
+</html>
